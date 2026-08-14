@@ -1,0 +1,36 @@
+@-moz-document url-prefix("https://your.shared.project.link.here") {
+
+/* make background state black and give an fade */
+html,
+body,  
+#app {background-color: #1e1e1e !important}
+body {opacity: 0; transition: opacity 0.6s ease-in-out !important;}
+
+/* build yellow blinking feature */
+@keyframes yellow-blnk {
+    0% {background-color: #ffeb3b}
+    50% {background-color: transparent}
+    100% {background-color: #ffeb3b }
+}
+
+/* disable logo because it use many space */
+.logo {display: none !important;}
+
+/* make overdue and high priority blinking as set above, note: class .is-overdue need set by tampermonkey */
+.is-overdue, .high-priority {font-weight: bold !important; animation: yellow-blnk 2.5s infinite !important}
+
+/* get full width */
+[class*="container"],
+[class*="wrapper"],
+[class*="layout"],
+[class*="list"],
+[class*="view"],
+[class*="grid"]
+{
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* make progressbar smaller */
+[class*="progress"] { width: 150px !important; max-width: none !important; min-width: 0px !important; flex-shrink: 0 !important; flex-grow: 0 !important}
+}
