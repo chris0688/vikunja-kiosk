@@ -1,0 +1,100 @@
+// ==UserScript==
+// @name         Vikunja Kiosk Helper
+// @namespace    http://tampermonkey.net/
+// @version      1.3
+// @description  Helper that fade in/out at reload and set class for overdue task
+// @match        https://your.vikunja.url.here/*
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+// 1. set opacity and start timer with inline-style
+    if (!document.getElementById('kiosk-fade-style')) {
+        const style = document.createElement('style');
+        style.id = 'kiosk-fade-style';
+        style.innerHTML = `
+            body {
+                opacity: 0 !important;
+                transition: opacity 0.8s ease-in-out !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // 2. fade back in after 2 second, should be long enough to bypass the "login" screen
+    setTimeout(() => {
+        const styleTag = document.getElementById('kiosk-fade-style');
+        if (styleTag) {
+            styleTag.remove(); // clear opacity
+        }
+        document.body.style.opacity = '1';
+    }, 2000); // 2000 milliseconds = 2 seconds
+
+    // 3. helper for marking overdue tasks; sets due tasks with "before X days" with new class .is-overdue
+    // may have to be set to your selected language in german its "vor"
+    function markOverdueTasks() {
+        document.querySelectorAll('[class*="dueDate"]').forEach(el => {
+            if (el.textContent.toLowerCase().includes('vor')) {
+                el.classList.add('is-overdue');
+            } else {
+                el.classList.remove('is-overdue');
+            }
+        });
+    }
+
+    setInterval(markOverdueTasks, 2000);
+
+    // 4. make a quick fade-out on leave/reload the page
+    window.addEventListener('beforeunload', function () {
+        document.body.style.transition = 'opacity 0.2s ease-in-out';
+        document.body.style.opacity = '0';
+    });
+
+    // 5. autoscroll feature
+    // ==========================================
+    // settings for autoscroll
+    // ==========================================
+    const scrollSpeed = 1; // pixel per step (1 = slow & smooth)
+    const scrollInterval = 40; // delay per step in ms (40ms = smooth)
+    const startDelay = 5000; // delay for scroll to start (5 sec)
+    const pauseAtBottom = 3000; // delay to scroll back up  (3 sec)
+    // ==========================================
+
+    let isScrolling = false;
+
+    function startAutoScroll() {
+        if (isScrolling) return;
+        isScrolling = true;
+
+        const timer = setInterval(() => {
+            const reachedBottom = (window.innerHeight + window.scrollY) >= (document.documentElement.scrollHeight - 2);
+
+            if (!reachedBottom) {
+                window.scrollBy(0, scrollSpeed);
+            } else {
+                clearInterval(timer);
+
+                if (window.scrollY > 0) {
+                    setTimeout(() => {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+
+                        setTimeout(() => {
+                            isScrolling = false;
+                            startAutoScroll();
+                        }, 3000);
+                    }, pauseAtBottom);
+                } else {
+                    setTimeout(() => {
+                        isScrolling = false;
+                        startAutoScroll();
+                    }, 5000);
+                }
+            }
+        }, scrollInterval);
+    }
+
+    setTimeout(startAutoScroll, startDelay);
+   
+})();
