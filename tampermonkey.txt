@@ -33,12 +33,13 @@
     }, 2000); // 2000 milliseconds = 2 seconds
 
     // 3. helper for marking overdue tasks; sets due tasks with "before X days" with new class .is-overdue
-    // may have to be set to your selected language in german its "vor"
+    // may have to be set to your selected language, in english its "ago", in german its "vor", both included already
     function markOverdueTasks() {
         document.querySelectorAll('[class*="dueDate"]').forEach(el => {
-            if (el.textContent.toLowerCase().includes('vor')) {
-                el.classList.add('is-overdue');
-            } else {
+            const text = el.textContent.toLowerCase();
+                if (text.includes('vor') || text.includes('ago')) {
+                    el.classList.add('is-overdue');
+                } else {
                 el.classList.remove('is-overdue');
             }
         });
