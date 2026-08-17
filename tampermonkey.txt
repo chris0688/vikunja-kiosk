@@ -10,6 +10,12 @@
 (function() {
     'use strict';
 
+    // Avoid initializing multiple times (e.g., when the script is injected repeatedly)
+    if (window.vikunjaKioskHelperInitialized) {
+        return;
+    }
+    window.vikunjaKioskHelperInitialized = true;
+
 // 1. set opacity and start timer with inline-style
     if (!document.getElementById('kiosk-fade-style')) {
         const style = document.createElement('style');
@@ -45,7 +51,18 @@
         });
     }
 
-    setInterval(markOverdueTasks, 2000);
+    // Run marking once because the page doesn't auto-update — avoid continuous polling
+    function scheduleMarkOverdue() {
+        // try after DOMContentLoaded and a short delay to allow Vikunja to render
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            setTimeout(markOverdueTasks, 800);
+        } else {
+            document.addEventListener('DOMContentLoaded', () => setTimeout(markOverdueTasks, 800), { once: true });
+        }
+        // safety call in case content renders slightly later
+        setTimeout(markOverdueTasks, 1600);
+    }
+    scheduleMarkOverdue();
 
     // 4. make a quick fade-out on leave/reload the page
     window.addEventListener('beforeunload', function () {
@@ -66,36 +83,74 @@
     let isScrolling = false;
 
     function startAutoScroll() {
-        if (isScrolling) return;
-        isScrolling = true;
+        if (window.vikunjaAutoScrollRunning) return;
+        window.vikunjaAutoScrollRunning = true;
 
-        const timer = setInterval(() => {
+        // clear any existing interval handle
+        if (window.vikunjaAutoScrollInterval) {
+            clearInterval(window.vikunjaAutoScrollInterval);
+            window.vikunjaAutoScrollInterval = null;
+        }
+
+        // clear any previous bottom timeout/poll
+        if (window.vikunjaAutoScrollBottomTimeout) {
+            clearTimeout(window.vikunjaAutoScrollBottomTimeout);
+            window.vikunjaAutoScrollBottomTimeout = null;
+        }
+        if (window.vikunjaScrollTopPoll) {
+            clearInterval(window.vikunjaScrollTopPoll);
+            window.vikunjaScrollTopPoll = null;
+        }
+
+        window.vikunjaAutoScrollInterval = setInterval(() => {
             const reachedBottom = (window.innerHeight + window.scrollY) >= (document.documentElement.scrollHeight - 2);
 
             if (!reachedBottom) {
                 window.scrollBy(0, scrollSpeed);
-            } else {
-                clearInterval(timer);
-
-                if (window.scrollY > 0) {
-                    setTimeout(() => {
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-
-                        setTimeout(() => {
-                            isScrolling = false;
-                            startAutoScroll();
-                        }, 3000);
-                    }, pauseAtBottom);
-                } else {
-                    setTimeout(() => {
-                        isScrolling = false;
-                        startAutoScroll();
-                    }, 5000);
-                }
+                return;
             }
+
+            // reached bottom -> stop the scrolling interval
+            clearInterval(window.vikunjaAutoScrollInterval);
+            window.vikunjaAutoScrollInterval = null;
+
+            // wait at bottom for pauseAtBottom ms, then smoothly scroll to top and wait until at top
+            window.vikunjaAutoScrollBottomTimeout = setTimeout(() => {
+                try {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } catch (e) {
+                    // fallback
+                    window.scrollTo(0, 0);
+                }
+
+                // poll until we've reached the top (or until timeout)
+                const pollInterval = 150; // ms
+                let pollCount = 0;
+                const maxPolls = Math.ceil(15000 / pollInterval); // ~15s safety
+
+                window.vikunjaScrollTopPoll = setInterval(() => {
+                    pollCount++;
+                    const atTop = window.scrollY === 0;
+                    if (atTop || pollCount >= maxPolls) {
+                        clearInterval(window.vikunjaScrollTopPoll);
+                        window.vikunjaScrollTopPoll = null;
+
+                        // allow a short pause at top, then restart scrolling cycle
+                        window.vikunjaAutoScrollRunning = false;
+                        if (window.vikunjaAutoScrollStartTimeout) clearTimeout(window.vikunjaAutoScrollStartTimeout);
+                        window.vikunjaAutoScrollStartTimeout = setTimeout(() => {
+                            startAutoScroll();
+                        }, pauseAtBottom);
+                    }
+                }, pollInterval);
+            }, pauseAtBottom);
         }, scrollInterval);
     }
 
-    setTimeout(startAutoScroll, startDelay);
+    // schedule start but avoid duplicate timers
+    if (window.vikunjaAutoScrollStartTimeout) {
+        clearTimeout(window.vikunjaAutoScrollStartTimeout);
+    }
+    window.vikunjaAutoScrollStartTimeout = setTimeout(startAutoScroll, startDelay);
    
 })();
